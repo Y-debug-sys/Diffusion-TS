@@ -1,0 +1,13 @@
+torch==2.0.1
+einops==0.6.0
+ema-pytorch==0.2.1
+matplotlib==3.6.0
+pandas==1.5.0
+scikit-learn==1.1.2
+scipy==1.8.1
+seaborn==0.12.2
+tqdm==4.64.1
+dm-control==1.0.12
+dm-env==1.6
+dm-tree==0.1.8
+mujoco==2.3.4

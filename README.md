@@ -99,7 +99,7 @@ After sampling, synthetic data and orginal data are stored in `.npy` file format
 
 ## Citation
 If you find this repo useful, please cite our paper via
-```
+```bibtex
 @inproceedings{dts2024diffusionts,
     title={Diffusion-TS: Interpretable Diffusion for General Time Series Generation},
     author={Xinyu Yuan and Yan Qiao},

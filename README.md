@@ -104,6 +104,7 @@ If you find this repo useful, please cite our paper via
   title={Diffusion-TS: Interpretable Diffusion for General Time Series Generation},
   author={Yuan, Xinyu and Qiao, Yan},
   booktitle={The Twelfth International Conference on Learning Representations},
+  url={https://openreview.net/pdf?id=4h1apFjO99},
   year={2023}
 }
 ```

@@ -75,7 +75,7 @@ def main():
     if args.train:
         trainer.train()
     elif args.sample == 1 and args.mode in ['infill', 'predict']:
-        # trainer.load(args.milestone)
+        trainer.load(args.milestone)
         dataloader, dataset = test_dataloader_info['dataloader'], test_dataloader_info['dataset']
         coef = config['dataloader']['test_dataset']['coefficient']
         stepsize = config['dataloader']['test_dataset']['step_size']
@@ -85,7 +85,7 @@ def main():
             samples = unnormalize_to_zero_to_one(samples)
             np.save(os.path.join(args.save_dir, f'ddpm_{args.mode}_{args.name}.npy'), samples)
     else:
-        # trainer.load(args.milestone)
+        trainer.load(args.milestone)
         dataset = dataloader_info['dataset']
         samples = trainer.sample(num=len(dataset), size_every=2001, shape=[dataset.window, dataset.var_num])
         if dataset.auto_norm:

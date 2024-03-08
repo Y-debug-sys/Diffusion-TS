@@ -80,7 +80,7 @@ def main():
         coef = config['dataloader']['test_dataset']['coefficient']
         stepsize = config['dataloader']['test_dataset']['step_size']
         sampling_steps = config['dataloader']['test_dataset']['sampling_steps']
-        samples = trainer.restore(dataloader, [dataset.window, dataset.var_num], coef, stepsize, sampling_steps)
+        samples, *_ = trainer.restore(dataloader, [dataset.window, dataset.var_num], coef, stepsize, sampling_steps)
         if dataset.auto_norm:
             samples = unnormalize_to_zero_to_one(samples)
             np.save(os.path.join(args.save_dir, f'ddpm_{args.mode}_{args.name}.npy'), samples)

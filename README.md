@@ -100,12 +100,11 @@ After sampling, synthetic data and orginal data are stored in `.npy` file format
 ## Citation
 If you find this repo useful, please cite our paper via
 ```bibtex
-@inproceedings{yuan2023diffusion,
+@article{yuan2024diffusion,
   title={Diffusion-TS: Interpretable Diffusion for General Time Series Generation},
   author={Yuan, Xinyu and Qiao, Yan},
-  booktitle={The Twelfth International Conference on Learning Representations},
-  url={https://openreview.net/pdf?id=4h1apFjO99},
-  year={2023}
+  journal={arXiv preprint arXiv:2403.01742},
+  year={2024}
 }
 ```
 

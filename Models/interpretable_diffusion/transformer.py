@@ -419,7 +419,7 @@ class Transformer(nn.Module):
                                block_activate, condition_dim=n_embd)
         self.pos_dec = LearnablePositionalEncoding(n_embd, dropout=resid_pdrop, max_len=max_len)
 
-    def forward(self, input, t, padding_masks=None):
+    def forward(self, input, t, padding_masks=None, return_res=False):
         emb = self.emb(input)
         inp_enc = self.pos_enc(emb)
         enc_cond = self.encoder(inp_enc, t, padding_masks=padding_masks)
@@ -431,6 +431,9 @@ class Transformer(nn.Module):
         res_m = torch.mean(res, dim=1, keepdim=True)
         season_error = self.combine_s(season.transpose(1, 2)).transpose(1, 2) + res - res_m
         trend = self.combine_m(mean) + res_m + trend
+
+        if return_res:
+            return trend, self.combine_s(season.transpose(1, 2)).transpose(1, 2), res - res_m
 
         return trend, season_error
 

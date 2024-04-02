@@ -271,8 +271,8 @@ class Diffusion_TS(nn.Module):
         t = torch.tensor([t])
         t = t.repeat(b).to(device)
         x = self.q_sample(x, t)
-        trend, season = self.model(x, t)
-        return trend, season
+        trend, season, residual = self.model(x, t, return_res=True)
+        return trend, season, residual, x
 
     def fast_sample_infill(self, shape, target, sampling_timesteps, partial_mask=None, clip_denoised=True, model_kwargs=None):
         batch, device, total_timesteps, eta = shape[0], self.betas.device, self.num_timesteps, self.eta

@@ -40,7 +40,7 @@ For training, you can reproduce the experimental results of all benchmarks by ru
 (myenv) $ python main.py --name {name} --config_file {config.yaml} --gpu 0 --train
 ~~~
 
-**Note:** We also provided the corresponding `.yml` files under the folder `./Config` where all possible option can be altered. You may need to change some parameters in the model for different scenarios. For example, we use the whole data to train model for unconditional evaluation, then *training_ratio* is set to 1 by default. As for conditional generation, we need to divide data set thus it should be changed to a value < 1. 
+**Note:** We also provided the corresponding `.yml` files (stocks, sines, mujoco, etth, energy and fmri) under the folder `./Config` where all possible option can be altered. You may need to change some parameters in the model for different scenarios. For example, we use the whole data to train model for unconditional evaluation, then *training_ratio* is set to 1 by default. As for conditional generation, we need to divide data set thus it should be changed to a value < 1. 
 
 While training, the script will save check points to the *results* folder after a fixed number of epochs. Once trained, please use the saved model for sampling by running
 

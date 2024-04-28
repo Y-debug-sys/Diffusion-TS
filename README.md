@@ -1,5 +1,7 @@
 # Diffusion-TS: Interpretable Diffusion for General Time Series Generation
 
+[![](https://img.shields.io/github/stars/Y-debug-sys/Diffusion-TS.svg)](https://github.com/Y-debug-sys/Diffusion-TS/stargazers)
+[![](https://img.shields.io/github/forks/Y-debug-sys/Diffusion-TS.svg)](https://github.com/Y-debug-sys/Diffusion-TS/network) 
 [![](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/LICENSE) 
 <img src="https://img.shields.io/badge/python-3.8-blue">
 <img src="https://img.shields.io/badge/pytorch-2.0-orange">

@@ -8,7 +8,7 @@ Please download **dataset.zip**, then unzip and copy it to the location indicate
 
 ### 🕶️ Pipeline Overview
 
-The figure below shows everything that happens after calling *build_dataloader* and *build_dataloader_cond* (which shares the same random seed).
+The figure below shows everything that happens after calling *build_dataloader*
 
 <div align="center">
 <img src="../figures/Flowchart.svg" width=100% />
@@ -24,8 +24,8 @@ Below we show the specific meaning of the saved file:
 
 > 🔔 Note that the generated time series `ddpm_fake_{name}.npy` or `ddpm_{mode}_{name}.npy` are also normalized into [0, 1]. You can restore them by adding following codes in **main.py**:
 ```
-line 86: samples = dataset.scaler.inverse_transform(samples)
-line 93: samples = dataset.scaler.inverse_transform(samples)
+line 86: samples = dataset.scaler.inverse_transform(samples.reshape(-1, samples.shape[-1])).reshape(samples.shape)
+line 93: samples = dataset.scaler.inverse_transform(samples.reshape(-1, samples.shape[-1])).reshape(samples.shape)
 ```
 
 ### 📝 Custom Dataset

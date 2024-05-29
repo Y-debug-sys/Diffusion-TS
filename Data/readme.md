@@ -8,7 +8,7 @@ Please download **dataset.zip**, then unzip and copy it to the location indicate
 
 ### 🕶️ Pipeline Overview
 
-The figure below shows everything that happens after calling *build_dataloader*
+The figure below shows everything that happens after calling *build_dataloader* and *build_dataloader_cond* (which use the same random seed).
 
 <div align="center">
 <img src="../figures/Flowchart.svg" width=100% />

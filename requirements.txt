@@ -12,3 +12,4 @@ dm-env==1.6
 dm-tree==0.1.8
 mujoco==2.3.4
 gluonts==0.12.6
+pyyaml==6.0

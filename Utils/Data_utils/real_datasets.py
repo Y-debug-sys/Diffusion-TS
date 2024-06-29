@@ -115,6 +115,7 @@ class CustomDataset(Dataset):
 
         regular_train_num = int(np.ceil(size * ratio))
         id_rdm = np.random.permutation(size)
+        # id_rdm = np.arange(size)
         regular_train_id = id_rdm[:regular_train_num]
         irregular_train_id = id_rdm[regular_train_num:]
 

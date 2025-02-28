@@ -3,6 +3,7 @@ import sys
 import time
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 from pathlib import Path
 from tqdm.auto import tqdm
@@ -29,9 +30,10 @@ class Trainer(object):
         self.gradient_accumulate_every = config['solver']['gradient_accumulate_every']
         self.save_cycle = config['solver']['save_cycle']
         self.dl = cycle(dataloader['dataloader'])
+        self.dataloader = dataloader['dataloader']
         self.step = 0
         self.milestone = 0
-        self.args = args
+        self.args, self.config = args, config
         self.logger = logger
 
         self.results_folder = Path(config['solver']['results_folder'] + f'_{model.seq_length}')
@@ -62,6 +64,15 @@ class Trainer(object):
             'opt': self.opt.state_dict(),
         }
         torch.save(data, str(self.results_folder / f'checkpoint-{milestone}.pt'))
+    
+    def save_classifier(self, milestone, verbose=False):
+        if self.logger is not None and verbose:
+            self.logger.log_info('Save current classifer to {}'.format(str(self.results_folder / f'ckpt_classfier-{milestone}.pt')))
+        data = {
+            'step': self.step_classifier,
+            'classifier': self.classifier.state_dict()
+        }
+        torch.save(data, str(self.results_folder / f'ckpt_classfier-{milestone}.pt'))
 
     def load(self, milestone, verbose=False):
         if self.logger is not None and verbose:
@@ -73,6 +84,15 @@ class Trainer(object):
         self.opt.load_state_dict(data['opt'])
         self.ema.load_state_dict(data['ema'])
         self.milestone = milestone
+
+    def load_classifier(self, milestone, verbose=False):
+        if self.logger is not None and verbose:
+            self.logger.log_info('Resume from {}'.format(str(self.results_folder / f'ckpt_classfier-{milestone}.pt')))
+        device = self.device
+        data = torch.load(str(self.results_folder / f'ckpt_classfier-{milestone}.pt'), map_location=device)
+        self.classifier.load_state_dict(data['classifier'])
+        self.step_classifier = data['step']
+        self.milestone_classifier = milestone
 
     def train(self):
         device = self.device
@@ -123,7 +143,7 @@ class Trainer(object):
         if self.logger is not None:
             self.logger.log_info('Training done, time: {:.2f}'.format(time.time() - tic))
 
-    def sample(self, num, size_every, shape=None):
+    def sample(self, num, size_every, shape=None, model_kwargs=None, cond_fn=None):
         if self.logger is not None:
             tic = time.time()
             self.logger.log_info('Begin to sample...')
@@ -131,7 +151,7 @@ class Trainer(object):
         num_cycle = int(num // size_every) + 1
 
         for _ in range(num_cycle):
-            sample = self.ema.ema_model.generate_mts(batch_size=size_every)
+            sample = self.ema.ema_model.generate_mts(batch_size=size_every, model_kwargs=model_kwargs, cond_fn=cond_fn)
             samples = np.row_stack([samples, sample.detach().cpu().numpy()])
             torch.cuda.empty_cache()
 
@@ -167,3 +187,63 @@ class Trainer(object):
             self.logger.log_info('Imputation done, time: {:.2f}'.format(time.time() - tic))
         return samples, reals, masks
         # return samples
+
+    def forward_sample(self, x_start):
+       b, c, h = x_start.shape
+       noise = torch.randn_like(x_start, device=self.device)
+       t = torch.randint(0, self.model.num_timesteps, (b,), device=self.device).long()
+       x_t = self.model.q_sample(x_start=x_start, t=t, noise=noise).detach()
+       return x_t, t
+
+    def train_classfier(self, classifier):
+        device = self.device
+        step = 0
+        self.milestone_classifier = 0
+        self.step_classifier = 0
+        dataloader = self.dataloader
+        dataloader.dataset.shift_period('test')
+        dataloader = cycle(dataloader)
+
+        self.classifier = classifier
+        self.opt_classifier = Adam(filter(lambda p: p.requires_grad, self.classifier.parameters()), lr=5.0e-4)
+        
+        if self.logger is not None:
+            tic = time.time()
+            self.logger.log_info('{}: start training classifier...'.format(self.args.name), check_primary=False)
+        
+        with tqdm(initial=step, total=self.train_num_steps) as pbar:
+            while step < self.train_num_steps:
+                total_loss = 0.
+                for _ in range(self.gradient_accumulate_every):
+                    x, y = next(dataloader)
+                    x, y = x.to(device), y.to(device)
+                    x_t, t = self.forward_sample(x)
+                    logits = classifier(x_t, t)
+                    loss = F.cross_entropy(logits, y)
+                    loss = loss / self.gradient_accumulate_every
+                    loss.backward()
+                    total_loss += loss.item()
+
+                pbar.set_description(f'loss: {total_loss:.6f}')
+
+                self.opt_classifier.step()
+                self.opt_classifier.zero_grad()
+                self.step_classifier += 1
+                step += 1
+
+                with torch.no_grad():
+                    if self.step_classifier != 0 and self.step_classifier % self.save_cycle == 0:
+                        self.milestone_classifier += 1
+                        self.save(self.milestone_classifier)
+                                            
+                    if self.logger is not None and self.step_classifier % self.log_frequency == 0:
+                        self.logger.add_scalar(tag='train/loss', scalar_value=total_loss, global_step=self.step)
+
+                pbar.update(1)
+
+        print('training complete')
+        if self.logger is not None:
+            self.logger.log_info('Training done, time: {:.2f}'.format(time.time() - tic))
+
+        # return classifier
+

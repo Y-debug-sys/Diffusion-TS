@@ -1,0 +1,69 @@
+model:
+  target: Models.interpretable_diffusion.gaussian_diffusion.Diffusion_TS
+  params:
+    seq_length: 24
+    feature_size: 14
+    n_layer_enc: 3
+    n_layer_dec: 2
+    d_model: 64  # 4 X 16
+    timesteps: 500
+    sampling_timesteps: 100
+    loss_type: 'l1'
+    beta_schedule: 'cosine'
+    n_heads: 4
+    mlp_hidden_times: 4
+    attn_pd: 0.0
+    resid_pd: 0.0
+    kernel_size: 1
+    padding_size: 0
+
+classifier:
+  target: Models.interpretable_diffusion.classifier.Classifier
+  params:
+    seq_length: 24
+    feature_size: 14
+    num_classes: 2
+    n_layer_enc: 3
+    n_embd: 64  # 4 X 16
+    n_heads: 4
+    mlp_hidden_times: 4
+    attn_pd: 0.0
+    resid_pd: 0.0
+    max_len: 24  # seq_length
+    num_head_channels: 8
+
+solver:
+  base_lr: 1.0e-5
+  max_epochs: 12000
+  results_folder: ./Checkpoints_eeg
+  gradient_accumulate_every: 2
+  save_cycle: 1200  # max_epochs // 10
+  ema:
+    decay: 0.995
+    update_interval: 10
+  
+  scheduler:
+    target: engine.lr_sch.ReduceLROnPlateauWithWarmup
+    params:
+      factor: 0.5
+      patience: 3000
+      min_lr: 1.0e-5
+      threshold: 1.0e-1
+      threshold_mode: rel
+      warmup_lr: 8.0e-4
+      warmup: 500
+      verbose: False
+
+dataloader:
+  train_dataset:
+    target: Utils.Data_utils.eeg_dataset.EEGDataset
+    params:
+      data_root: ../Data/datasets/EEG_Eye_State.arff
+      window: 24  # seq_length
+      save2npy: True
+      neg_one_to_one: True
+      period: train
+
+  batch_size: 128
+  sample_size: 256
+  shuffle: True

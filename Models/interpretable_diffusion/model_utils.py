@@ -10,30 +10,82 @@ from scipy.fftpack import next_fast_len
 
 
 def exists(x):
+    """
+    Check if the input is not None.
+
+    Args:
+        x: The input to check.
+
+    Returns:
+        bool: True if the input is not None, False otherwise.
+    """
     return x is not None
 
 def default(val, d):
+    """
+    Return the value if it exists, otherwise return the default value.
+
+    Args:
+        val: The value to check.
+        d: The default value or a callable that returns the default value.
+
+    Returns:
+        The value if it exists, otherwise the default value.
+    """
     if exists(val):
         return val
     return d() if callable(d) else d
 
 def identity(t, *args, **kwargs):
+    """
+    Return the input tensor unchanged.
+
+    Args:
+        t: The input tensor.
+        *args: Additional arguments (unused).
+        **kwargs: Additional keyword arguments (unused).
+
+    Returns:
+        The input tensor unchanged.
+    """
     return t
 
 def extract(a, t, x_shape):
+    """
+    Extracts values from tensor `a` at indices specified by tensor `t` and reshapes the result.
+    Args:
+        a (torch.Tensor): The input tensor from which values are extracted.
+        t (torch.Tensor): The tensor containing indices to extract from `a`.
+        x_shape (tuple): The shape of the tensor `x` which determines the final shape of the output.
+    Returns:
+        torch.Tensor: A tensor containing the extracted values, reshaped to match the shape of `x` except for the first dimension.
+    """
+
     b, *_ = t.shape
     out = a.gather(-1, t)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
-def Upsample(dim, dim_out=None):
-    return nn.Sequential(
-        nn.Upsample(scale_factor=2, mode='nearest'),
-        nn.Conv1d(dim, default(dim_out, dim), 3, padding=1)
-    )
+def cond_fn(x, t, classifier=None, y=None, classifier_scale=1.):
+    """
+    Compute the gradient of the classifier's log probabilities with respect to the input.
 
-def Downsample(dim, dim_out=None):
-    return nn.Conv1d(dim, default(dim_out, dim), 4, 2, 1)
+    Args:
+        classifier (nn.Module): The classifier model used to compute logits.
+        x (torch.Tensor): The input tensor for which gradients are computed.
+        t (torch.Tensor): The time step tensor.
+        y (torch.Tensor, optional): The target labels tensor. Must not be None.
+        classifier_scale (float, optional): Scaling factor for the gradients. Default is 1.
 
+    Returns:
+        torch.Tensor: The gradient of the selected log probabilities with respect to the input tensor, scaled by classifier_scale.
+    """
+    assert y is not None
+    with torch.enable_grad():
+        x_in = x.detach().requires_grad_(True)
+        logits = classifier(x_in, t)
+        log_probs = F.log_softmax(logits, dim=-1)
+        selected = log_probs[range(len(logits)), y.view(-1)]
+        return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
 
 # normalization functions
 
@@ -47,6 +99,15 @@ def unnormalize_to_zero_to_one(x):
 # sinusoidal positional embeds
 
 class SinusoidalPosEmb(nn.Module):
+    """
+    Sinusoidal positional embedding module.
+
+    This module generates sinusoidal positional embeddings for input tensors.
+    The embeddings are computed using sine and cosine functions with different frequencies.
+
+    Attributes:
+        dim (int): The dimension of the positional embeddings.
+    """
     def __init__(self, dim):
         super().__init__()
         self.dim = dim
@@ -64,6 +125,17 @@ class SinusoidalPosEmb(nn.Module):
 # learnable positional embeds
 
 class LearnablePositionalEncoding(nn.Module):
+    """
+    Learnable positional encoding module.
+
+    This module generates learnable positional embeddings for input tensors.
+    The embeddings are learned during training and can adapt to the specific task.
+
+    Attributes:
+        d_model (int): The dimension of the positional embeddings.
+        dropout (float): The dropout rate applied to the embeddings.
+        max_len (int): The maximum length of the input sequences.
+    """
     def __init__(self, d_model, dropout=0.1, max_len=1024):
         super(LearnablePositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)

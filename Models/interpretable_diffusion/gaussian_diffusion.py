@@ -166,14 +166,19 @@ class Diffusion_TS(nn.Module):
         model_mean, posterior_variance, posterior_log_variance = \
             self.q_posterior(x_start=x_start, x_t=x, t=t)
         return model_mean, posterior_variance, posterior_log_variance, x_start
-
-    def p_sample(self, x, t: int, clip_denoised=True):
+    
+    def p_sample(self, x, t: int, clip_denoised=True, cond_fn=None, model_kwargs=None):
+        b, *_, device = *x.shape, self.betas.device
         batched_times = torch.full((x.shape[0],), t, device=x.device, dtype=torch.long)
         model_mean, _, model_log_variance, x_start = \
             self.p_mean_variance(x=x, t=batched_times, clip_denoised=clip_denoised)
         noise = torch.randn_like(x) if t > 0 else 0.  # no noise if t == 0
-        pred_img = model_mean + (0.5 * model_log_variance).exp() * noise
-        return pred_img, x_start
+        if cond_fn is not None:
+            model_mean = self.condition_mean(
+                cond_fn, model_mean, model_log_variance, x, t=batched_times, model_kwargs=model_kwargs
+            )
+        pred_series = model_mean + (0.5 * model_log_variance).exp() * noise
+        return pred_series, x_start
 
     @torch.no_grad()
     def sample(self, shape):
@@ -214,9 +219,12 @@ class Diffusion_TS(nn.Module):
                   sigma * noise
 
         return img
-
-    def generate_mts(self, batch_size=16):
+    
+    def generate_mts(self, batch_size=16, model_kwargs=None, cond_fn=None):
         feature_size, seq_length = self.feature_size, self.seq_length
+        if cond_fn is not None:
+            sample_fn = self.fast_sample_cond if self.fast_sampling else self.sample_cond
+            return sample_fn((batch_size, seq_length, feature_size), model_kwargs=model_kwargs, cond_fn=cond_fn)
         sample_fn = self.fast_sample if self.fast_sampling else self.sample
         return sample_fn((batch_size, seq_length, feature_size))
 
@@ -407,6 +415,100 @@ class Diffusion_TS(nn.Module):
         sample[~partial_mask] = input_embs_param.data[~partial_mask]
         return sample
     
+    def condition_mean(self, cond_fn, mean, log_variance, x, t, model_kwargs=None):
+        """
+        Compute the mean for the previous step, given a function cond_fn that
+        computes the gradient of a conditional log probability with respect to
+        x. In particular, cond_fn computes grad(log(p(y|x))), and we want to
+        condition on y.
+
+        This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
+        """
+        gradient = cond_fn(x=x, t=t, **model_kwargs)
+        new_mean = (
+            mean.float() + torch.exp(log_variance) * gradient.float()
+        )
+        return new_mean
+    
+    def condition_score(self, cond_fn, x_start, x, t, model_kwargs=None):
+        """
+        Compute what the p_mean_variance output would have been, should the
+        model's score function be conditioned by cond_fn.
+
+        See condition_mean() for details on cond_fn.
+
+        Unlike condition_mean(), this instead uses the conditioning strategy
+        from Song et al (2020).
+        """
+        alpha_bar = extract(self.alphas_cumprod, t, x.shape)
+
+        eps = self.predict_noise_from_start(x, t, x_start)
+        eps = eps - (1 - alpha_bar).sqrt() * cond_fn(x, t, **model_kwargs)
+
+        pred_xstart = self.predict_start_from_noise(x, t, eps)
+        model_mean, _, _ = self.q_posterior(x_start=pred_xstart, x_t=x, t=t)
+        return model_mean, pred_xstart
+    
+    def sample_cond(
+        self,
+        shape,
+        clip_denoised=True,
+        model_kwargs=None,
+        cond_fn=None
+    ):
+        """
+        Generate samples from the model and yield intermediate samples from
+        each timestep of diffusion.
+        """
+        batch, device = shape[0], self.betas.device
+        img = torch.randn(shape, device=device)
+        for t in tqdm(reversed(range(0, self.num_timesteps)),
+                      desc='sampling loop time step', total=self.num_timesteps):
+            img, x_start = self.p_sample(img, t, clip_denoised=clip_denoised, cond_fn=cond_fn,
+                                         model_kwargs=model_kwargs)
+        return img
+
+    def fast_sample_cond(
+        self,
+        shape,
+        clip_denoised=True,
+        model_kwargs=None,
+        cond_fn=None
+    ):
+        batch, device, total_timesteps, sampling_timesteps, eta = \
+            shape[0], self.betas.device, self.num_timesteps, self.sampling_timesteps, self.eta
+
+        # [-1, 0, 1, 2, ..., T-1] when sampling_timesteps == total_timesteps
+        times = torch.linspace(-1, total_timesteps - 1, steps=sampling_timesteps + 1)
+
+        times = list(reversed(times.int().tolist()))
+        time_pairs = list(zip(times[:-1], times[1:]))  # [(T-1, T-2), (T-2, T-3), ..., (1, 0), (0, -1)]
+        img = torch.randn(shape, device=device)
+        x_start = None
+
+        for time, time_next in tqdm(time_pairs, desc='sampling loop time step'):
+            time_cond = torch.full((batch,), time, device=device, dtype=torch.long)
+            pred_noise, x_start, *_ = self.model_predictions(img, time_cond, clip_x_start=clip_denoised)
+
+            if cond_fn is not None:
+                _, x_start = self.condition_score(cond_fn, x_start, img, time_cond, model_kwargs=model_kwargs)
+                pred_noise = self.predict_noise_from_start(img, time_cond, x_start)
+
+            if time_next < 0:
+                img = x_start
+                continue
+
+            alpha = self.alphas_cumprod[time]
+            alpha_next = self.alphas_cumprod[time_next]
+            sigma = eta * ((1 - alpha / alpha_next) * (1 - alpha_next) / (1 - alpha)).sqrt()
+            c = (1 - alpha_next - sigma ** 2).sqrt()
+            noise = torch.randn_like(img)
+            img = x_start * alpha_next.sqrt() + \
+                  c * pred_noise + \
+                  sigma * noise
+
+        return img
+
 
 if __name__ == '__main__':
     pass

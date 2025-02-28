@@ -16,7 +16,7 @@ Diffusion-TS is a diffusion-based framework that generates general time series s
   <b>Figure 1</b>: Overall Architecture of Diffusion-TS.
 </p>
 
-🎤 Update (2025/2/28): We have added an additional [experiment](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/Experiments/eeg_multiple_classes.ipynb) for the EEG dataset and incorporated the Classifier Guidance mechanism. Now, Diffusion-TS supports multi-class generation.
+🎤 **Update (2025/2/28)**: We have added an additional [experiment](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/Experiments/eeg_multiple_classes.ipynb) for the EEG dataset and incorporated the Classifier Guidance mechanism. Now, Diffusion-TS supports multi-class generation.
 
 ## Dataset Preparation
 
